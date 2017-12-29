@@ -7,25 +7,16 @@
 #include <glm\gtc\matrix_transform.hpp>
 #include <GL\glaux.h>
 
-#define FOURCC_DXT1 0x31545844 // Equivalent to "DXT1" in ASCII
-#define FOURCC_DXT3 0x33545844 // Equivalent to "DXT3" in ASCII
-#define FOURCC_DXT5 0x35545844 // Equivalent to "DXT5" in ASCII
-
 using namespace glm;
 
 GLuint Program;
 
 GLuint MatrixID;
-GLuint ViewMatrixID;
-GLuint ModelMatrixID;
 GLuint TextureID;
-GLuint LightID;
 
 GLuint vertexbuffer;
 GLuint uvbuffer;
 GLuint normalbuffer;
-
-GLuint Texture;
 
 std::vector<glm::vec3> vertices;
 std::vector<glm::vec2> uvs;
@@ -37,10 +28,7 @@ glm::mat4 ViewMatrix;
 glm::mat4 ProjectionMatrix;
 
 AUX_RGBImageRec *image;
-AUX_RGBImageRec *image_win;
 unsigned int image_tex;
-unsigned int image_win_tex;
-
 
 //! Вершина
 struct vertex
@@ -69,7 +57,6 @@ bool loadOBJ(const char * path, std::vector<glm::vec3> & out_vertices,
 
 	while (true) {
 		char lineHeader[128];
-		// read the first word of the line
 		int res = fscanf(file, "%s", lineHeader);
 		if (res == EOF)
 			break;
@@ -110,20 +97,16 @@ bool loadOBJ(const char * path, std::vector<glm::vec3> & out_vertices,
 
 	}
 
-	// For each vertex of each triangle
 	for (unsigned int i = 0; i<vertexIndices.size(); i++) {
 
-		// Get the indices of its attributes
 		unsigned int vertexIndex = vertexIndices[i];
 		unsigned int uvIndex = uvIndices[i];
 		unsigned int normalIndex = normalIndices[i];
 
-		// Get the attributes thanks to the index
 		glm::vec3 vertex = temp_vertices[vertexIndex - 1];
 		glm::vec2 uv = temp_uvs[uvIndex - 1];
 		glm::vec3 normal = temp_normals[normalIndex - 1];
 
-		// Put the attributes in buffers
 		out_vertices.push_back(vertex);
 		out_uvs.push_back(uv);
 		out_normals.push_back(normal);
@@ -138,6 +121,7 @@ void initGL() {
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_CULL_FACE);
+	glEnable(GL_LIGHTING);
 }
 
 //! Функция печати лога шейдера
@@ -182,67 +166,21 @@ void initShader()
 		"layout(location = 2) in vec3 normal;\n"
 
 		"out vec2 UV;\n" //Текстурные координаты
-		"out float distance;\n" //Расстояние от точечного источника освещения до вершины
-		"out vec3 Normal_cameraspace;\n" //Нормаль к поверхности объекта в вершине
-		"out vec3 EyeDirection_cameraspace;\n" //Направление взгляда, от вершины к наблюдателю
-		"out vec3 LightDirection_cameraspace;\n" //Направление падающего света, от вершины к источнику освещения
 
 		"uniform mat4 MVP;\n"
-		"uniform mat4 V;\n"
-		"uniform mat4 M;\n"
-		"uniform vec3 LightPosition_worldspace;\n"
 
 		"void main() {\n"
-		" gl_Position = MVP * vec4(position, 1);\n"
-		
-		" vec3 Position_worldspace = (M * vec4(position, 1)).xyz;\n"
-		" vec3 vertexPosition_cameraspace = (V * M * vec4(position, 1)).xyz;\n"
-		
-		" EyeDirection_cameraspace = vec3(0, 0, 0) - vertexPosition_cameraspace;\n"
-		" vec3 LightPosition_cameraspace = (V * vec4(LightPosition_worldspace, 1)).xyz;\n"
-		
-		" distance = length(LightPosition_worldspace - Position_worldspace);\n"
-
-		" LightDirection_cameraspace = LightPosition_cameraspace + EyeDirection_cameraspace;\n"
-		" Normal_cameraspace = (V * M * vec4(normal, 0)).xyz;\n"
-		
+		" gl_Position = MVP * vec4(position, 1);\n"	
 		" UV = texcoord;\n"
 		"}\n";
 
 	const char* fsSource =
 		"in vec2 UV;\n"
-		"in float distance;\n"
-		"in vec3 Normal_cameraspace;\n"
-		"in vec3 EyeDirection_cameraspace;\n"
-		"in vec3 LightDirection_cameraspace;\n"
-
-		"out vec3 color;\n"
 
 		"uniform sampler2D myTextureSampler;\n"
-		"uniform mat4 MV;\n"
-		"uniform vec3 LightPosition_worldspace;\n"
 
 		"void main() {\n"
-		"vec3 LightColor = vec3(1.0, 1.0, 1.0);\n"
-		"float LightPower = 40.0f;\n"
-
-		"vec3 MaterialDiffuseColor = texture(myTextureSampler, UV).rgb;\n"
-		"vec3 MaterialAmbientColor = vec3(0.3, 0.3, 0.3) * MaterialDiffuseColor;\n"
-		"vec3 MaterialSpecularColor = vec3(0.1, 0.1, 0.1);\n"
-
-		"vec3 n = normalize(Normal_cameraspace);\n"
-		"vec3 l = normalize(LightDirection_cameraspace);\n"
-		"float cosTheta = clamp(dot(n, l), 0, 1);\n"
-
-		"vec3 E = normalize(EyeDirection_cameraspace);\n"
-		"vec3 R = reflect(-l, n);\n"
-		"float cosAlpha = clamp(dot(E, R), 0, 1);\n"
-
-		"color = \n"
-		"MaterialAmbientColor +\n"
-		"MaterialDiffuseColor * LightColor * LightPower * cosTheta / (distance*distance) +\n"
-		"MaterialSpecularColor * LightColor * LightPower * pow(cosAlpha, 2) / (distance*distance);\n"
-		
+		" gl_FragColor = vec4(texture(myTextureSampler, UV).rgb, 1.0);\n"
 		"}\n";
 
 	//! Переменные для хранения идентификаторов шейдеров
@@ -286,12 +224,7 @@ void initShader()
 	}
 
 	MatrixID = glGetUniformLocation(Program, "MVP");
-	ViewMatrixID = glGetUniformLocation(Program, "V");
-	ModelMatrixID = glGetUniformLocation(Program, "M");
-
 	TextureID = glGetUniformLocation(Program, "myTextureSampler");
-
-	LightID = glGetUniformLocation(Program, "LightPosition_worldspace");
 
 	checkOpenGLerror();
 }
@@ -348,23 +281,30 @@ void resizeWindow(int width, int height)
 	MVP = ProjectionMatrix * ViewMatrix * ModelMatrix;
 }
 
+void Enable_Light0(void) {
+	glShadeModel(GL_SMOOTH);
+	glEnable(GL_LIGHTING);
+	glEnable(GL_NORMALIZE);
+	glEnable(GL_LIGHT0);
+
+	GLfloat position[] = { -2.0, 0.0, 2.0, 1.0 };
+	GLfloat ambientLight[] = { 0.0, 0.0, 0.0, 1.0 };
+	GLfloat diffuseLight[] = { 1.0, 1.0, 1.0, 1.0 };
+	GLfloat specularLight[] = { 1.0, 1.0, 1.0, 1.0 };
+
+	glLightfv(GL_LIGHT0, GL_POSITION, position);
+	glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
+	glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
+	glLightfv(GL_LIGHT0, GL_SPECULAR, specularLight);
+}
+
 //! Отрисовка
 void render()
 {
-	// Clear the screen
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	// Use our shader
 	glUseProgram(Program);
 
-	// Send our transformation to the currently bound shader, 
-	// in the "MVP" uniform
 	glUniformMatrix4fv(MatrixID, 1, GL_FALSE, &MVP[0][0]);
-	glUniformMatrix4fv(ModelMatrixID, 1, GL_FALSE, &ModelMatrix[0][0]);
-	glUniformMatrix4fv(ViewMatrixID, 1, GL_FALSE, &ViewMatrix[0][0]);
-
-	glm::vec3 lightPos = glm::vec3(-2, 4, 5);
-	glUniform3f(LightID, lightPos.x, lightPos.y, lightPos.z);
 
 	glActiveTexture(GL_TEXTURE0);
 	glGenTextures(1, &image_tex);
@@ -395,7 +335,6 @@ void render()
 	glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
 	// Draw the triangle !
-	//glDrawElements(GL_TRIANGLES, vertices.size(), GL_UNSIGNED_INT, 0);
 	glDrawArrays(GL_TRIANGLES, 0, vertices.size());
 
 	glDisableVertexAttribArray(0);

@@ -1,4 +1,4 @@
 ﻿  main.cpp
-c:\users\sasha\documents\github\opengl04\opengl04\main.cpp(137): warning C4305: 'argument': truncation from 'double' to 'GLclampf'
+c:\users\sasha\documents\github\opengl04\opengl04\main.cpp(120): warning C4305: 'argument': truncation from 'double' to 'GLclampf'
   OpenGL04.vcxproj -> C:\Users\Sasha\Documents\GitHub\OpenGL04\OpenGL04\Debug\OpenGL04.exe
   OpenGL04.vcxproj -> C:\Users\Sasha\Documents\GitHub\OpenGL04\OpenGL04\Debug\OpenGL04.pdb (Full PDB)
